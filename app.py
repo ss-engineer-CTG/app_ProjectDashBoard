@@ -4,8 +4,10 @@
 
 import logging
 import dash
-from dash import html, dcc
+from dash import html, dcc, Input, Output
 import os
+from flask import request
+import signal
 
 from ProjectDashBoard.config import COLORS, STYLES, HTML_TEMPLATE
 from ProjectDashBoard.callbacks import register_callbacks
@@ -45,10 +47,28 @@ app.layout = html.Div([
                    style={'color': COLORS['text']['primary']}),
             html.P(id='update-time',
                   style={'color': COLORS['text']['secondary']})
-        ], style=STYLES['container'])
-    ], style={'backgroundColor': COLORS['surface'],
-              'borderBottom': '1px solid rgba(255,255,255,0.1)',
-              'boxShadow': '0 2px 4px rgba(0,0,0,0.2)'}),
+        ], style=STYLES['container']),
+        
+        # 閉じるボタンを追加
+        html.Button('ダッシュボードを閉じる', 
+                   id='close-button', 
+                   style={
+                       'position': 'absolute',
+                       'top': '10px',
+                       'right': '10px',
+                       'backgroundColor': COLORS['status']['danger'],
+                       'color': 'white',
+                       'border': 'none',
+                       'padding': '8px 15px',
+                       'borderRadius': '4px',
+                       'cursor': 'pointer'
+                   })
+    ], style={
+        'backgroundColor': COLORS['surface'],
+        'borderBottom': '1px solid rgba(255,255,255,0.1)',
+        'boxShadow': '0 2px 4px rgba(0,0,0,0.2)',
+        'position': 'relative'  # 追加: ボタンの絶対配置に必要
+    }),
     
     # メインコンテンツ
     html.Div([
@@ -106,8 +126,35 @@ app.layout = html.Div([
               'minHeight': '100vh'})
 ], style={'backgroundColor': COLORS['background']})
 
+# 閉じるボタンのコールバック
+@app.callback(
+    Output("dummy-output", "children", allow_duplicate=True),  # allow_duplicateを追加
+    Input("close-button", "n_clicks"),
+    prevent_initial_call=True
+)
+def close_dashboard(n_clicks):
+    if n_clicks:
+        # 自分自身を終了
+        shutdown_server()
+    return ""
+
 # コールバックの登録
 register_callbacks(app)
+
+# シャットダウンエンドポイントを追加
+@app.server.route('/shutdown', methods=['POST'])
+def shutdown_server():
+    """サーバーをシャットダウンするエンドポイント"""
+    func = request.environ.get('werkzeug.server.shutdown')
+    if func is None:
+        # Werkzeug以外のサーバーの場合
+        try:
+            os.kill(os.getpid(), signal.SIGTERM)
+        except:
+            pass
+    else:
+        func()
+    return 'ダッシュボードサーバーを終了しています...'
 
 # アプリケーション起動
 if __name__ == '__main__':
